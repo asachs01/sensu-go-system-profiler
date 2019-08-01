@@ -1,20 +1,30 @@
 package main
 
+//Import the packages we need
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
+	"io"
+	"strconv"
+	"time"
 
 	"github.com/sensu/sensu-go/types"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/disk"
+	"github.com/shirou/gopsutil/docker"
+	"github.com/shirou/gopsutil/host"
+	"github.com/shirou/gopsutil/mem"
+	"github.com/shirou/gopsutil/net"
+	
 	"github.com/spf13/cobra"
 )
 
+//Set up some variables. Most notably, warning and critical as time durations
 var (
-	foo   string
-	stdin *os.File
+	stdin   *os.File
 )
 
+//Start our main function
 func main() {
 	rootCmd := configureRootCommand()
 	if err := rootCmd.Execute(); err != nil {
@@ -23,25 +33,50 @@ func main() {
 	}
 }
 
+//Set up our flags for the command. Note that we have time duration defaults for warning & critical
 func configureRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "sensu-CHANGEME",
-		Short: "The Sensu Go CHANGEME for x",
+		Use:   "sensu-go-memory-checks",
+		Short: "The Sensu Go check for system memory usage",
 		RunE:  run,
 	}
 
-	cmd.Flags().StringVarP(&foo,
-		"foo",
-		"f",
-		"",
-		"example")
+	cmd.Flags().StringVarP(&cpu,
+		"cpu",
+		"c",
+		true,
+		"Shows the info for system cpu.")
+	
+	cmd.Flags().StringVarP(&disk,
+		"disk",
+		"d",
+		true,
+		"Shows the info for system disk.")
+		
+	cmd.Flags().StringVarP(&host,
+		"host",
+		"h",
+		true,
+		"Shows host info.")
 
-	_ = cmd.MarkFlagRequired("foo")
-
+	cmd.Flags().StringVarP(&memory,
+		"memory",
+		"m",
+		true,
+		"Shows the info for system memory.")
+		
+	cmd.Flags().StringVarP(&network,
+		"network",
+		"n",
+		true,
+		"Shows the info for system network.")
+	
+		
 	return cmd
 }
 
 func run(cmd *cobra.Command, args []string) error {
+
 	if len(args) != 0 {
 		_ = cmd.Help()
 		return fmt.Errorf("invalid argument(s) received")
@@ -50,33 +85,151 @@ func run(cmd *cobra.Command, args []string) error {
 	if stdin == nil {
 		stdin = os.Stdin
 	}
-
-	eventJSON, err := ioutil.ReadAll(stdin)
-	if err != nil {
-		return fmt.Errorf("failed to read stdin: %s", err)
-	}
-
+	
 	event := &types.Event{}
-	err = json.Unmarshal(eventJSON, event)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal stdin data: %s", err)
-	}
-
-	if err = event.Validate(); err != nil {
-		return fmt.Errorf("failed to validate event: %s", err)
-	}
-
-	if !event.HasCheck() {
-		return fmt.Errorf("event does not contain check")
-	}
-
-	return exampleAction(event)
+	
+	return hostInfo(event)
 }
 
-func exampleAction(event *types.Event) error {
-	fmt.Printf("hello world: %s\n", foo)
+//Here we start the meat of what we do.
+func cpuInfo(event *types.Event) error {
+	
+	//Let's set up some error handling
+	if err != nil {
+		msg := fmt.Sprintf("Failed to determine disk info %s", err.Error())
+		io.WriteString(os.Stdout, msg)
+		os.Exit(2)
+	}
+	
+	//Let's set up some vars
+	interval, := time.Millisecond * 300
+	cpuStat, _ := cpu.InfoStat()
+	cpuPct, _ := cpu.Percent(interval, false)
 
-	fmt.Printf("Event Key: %s-%s\n", event.Entity.Name, event.Check.Name)
-
+	//Setting up our message to print some info about disks
+	msg := fmt.Sprintf()
+	
+	//Writing msg to stdout
+	io.WriteString(os.Stdout, msg)
+	
+	//Exiting with an OK
+	os.Exit(0)
+		
 	return nil
+}
+
+//This function gathers some informational bits about the host that the check runs on
+func hostInfo(event *types.Event) error {
+	
+	//Let's set up some error handling
+	if err != nil {
+		msg := fmt.Sprintf("Failed to determine host info %s", err.Error())
+		io.WriteString(os.Stdout, msg)
+		os.Exit(2)
+	}
+	
+	//Let's set up some vars...
+	hostStat, _ := host.Info()
+	uptime, _ := host.Uptime()
+	uptimeSecs := time.Duration(uptime)*time.Second
+
+	//Getting our message about our host info ready to print
+	msg := fmt.Sprintf("Hostname: %s\nOS: %s\nPlatform: %s\nUptime: %d seconds", hostStat.Hostname, hostStat.OS, hostStat.Platform, int64(uptimeSecs.Seconds()))
+	
+	//Writing msg to stdout
+	io.WriteString(os.Stdout, msg)
+	
+	//Exiting with an OK
+	os.Exit(0)
+}
+
+//This function gathers some infor about the disk(s) on a system
+func diskInfo(event *types.Event) error {
+
+	//Let's set up some error handling
+	if err != nil {
+		msg := fmt.Sprintf("Failed to determine disk info %s", err.Error())
+		io.WriteString(os.Stdout, msg)
+		os.Exit(2)
+	}
+	
+	//Let's set up some vars
+	diskStat, _ := disk.Usage()
+
+	//Setting up our message to print some info about disks
+	msg := fmt.Sprintf()
+	
+	//Writing msg to stdout
+	io.WriteString(os.Stdout, msg)
+	
+	//Exiting with an OK
+	os.Exit(0)
+	
+}
+
+func dockerInfo(event *types.Event) error {
+
+	//Let's set up some error handling
+	if err != nil {
+		msg := fmt.Sprintf("Failed to determine docker info %s", err.Error())
+		io.WriteString(os.Stdout, msg)
+		os.Exit(2)
+	}
+	
+	//Let's set up some vars
+	dockerStat, _ := docker.CgroupDockerStat()
+
+	//Setting up our message to print some info about disks
+	msg := fmt.Sprintf()
+	
+	//Writing msg to stdout
+	io.WriteString(os.Stdout, msg)
+	
+	//Exiting with an OK
+	os.Exit(0)
+	
+}
+
+func memInfo(event *types.Event) error {
+
+	//Let's set up some error handling
+	if err != nil {
+		msg := fmt.Sprintf("Failed to determine memory info %s", err.Error())
+		io.WriteString(os.Stdout, msg)
+		os.Exit(2)
+	}
+	
+	//Let's set up some vars
+	vmStat, _ := mem.VirtualMemoryStat()
+
+	//Setting up our message to print some info about network interfaces
+	msg := fmt.Sprintf()
+	
+	//Writing msg to stdout
+	io.WriteString(os.Stdout, msg)
+	
+	//Exiting with an OK
+	os.Exit(0)
+}
+
+func netInfo(event *types.Event) error {
+
+	//Let's set up some error handling
+	if err != nil {
+		msg := fmt.Sprintf("Failed to determine network info %s", err.Error())
+		io.WriteString(os.Stdout, msg)
+		os.Exit(2)
+	}
+	
+	//Let's set up some vars
+	netStat, _ := net.Interfaces()
+
+	//Setting up our message to print some info about network interfaces
+	msg := fmt.Sprintf()
+	
+	//Writing msg to stdout
+	io.WriteString(os.Stdout, msg)
+	
+	//Exiting with an OK
+	os.Exit(0)
 }
