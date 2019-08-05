@@ -47,11 +47,17 @@ func configureRootCommand() *cobra.Command {
 		true,
 		"Shows the info for system cpu.")
 	
-	cmd.Flags().StringVarP(&disk,
+	cmd.Flags().StringVarP(&diskS,
 		"disk",
 		"d",
 		true,
 		"Shows the info for system disk.")
+
+	cmd.Flags().StringVarP(&docker,
+		"disk",
+		"d",
+		false,
+		"Shows the info for running Docker containers.")
 		
 	cmd.Flags().StringVarP(&host,
 		"host",
@@ -88,7 +94,25 @@ func run(cmd *cobra.Command, args []string) error {
 	
 	event := &types.Event{}
 	
-	return hostInfo(event)
+	if cpu == true {
+		return cpuInfo(event)
+	}
+	if disk == true {
+		return diskInfo(event)
+	}
+	if docker == true {
+		return dockerInfo(event)
+	}
+	if host == true {
+		return hostInfo(event)
+	}
+	if memory == true {
+		return memInfo(event)
+	}
+	if network == true {
+		return netInfo(event)
+	}
+
 }
 
 //Here we start the meat of what we do.
@@ -102,12 +126,12 @@ func cpuInfo(event *types.Event) error {
 	}
 	
 	//Let's set up some vars
-	interval, := time.Millisecond * 300
+	interval := time.Millisecond * 300
 	cpuStat, _ := cpu.InfoStat()
 	cpuPct, _ := cpu.Percent(interval, false)
 
-	//Setting up our message to print some info about disks
-	msg := fmt.Sprintf()
+	//Setting up our message to print some info about CPU Percent
+	msg := fmt.Sprintf("Current CPU Utilization: %.2f\%", cpuPct)
 	
 	//Writing msg to stdout
 	io.WriteString(os.Stdout, msg)
